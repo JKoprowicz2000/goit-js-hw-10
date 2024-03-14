@@ -1,61 +1,74 @@
+// app.js
 import fetchCountries from './fetchCountries.js';
+import debounce from 'lodash.debounce';
 
 const searchBox = document.getElementById('search-box');
 const countryList = document.querySelector('.country-list');
-const countryDetails = document.querySelector('.country-details');
+const countryInfo = document.querySelector('.country-info');
 
 const clearCountryList = () => {
   countryList.innerHTML = '';
 };
 
-const clearCountryDetails = () => {
-  countryDetails.innerHTML = '';
+const clearCountryInfo = () => {
+  countryInfo.innerHTML = '';
 };
 
 const displayCountryList = (countries) => {
   clearCountryList();
-  countries.forEach(country => {
-    const listItem = document.createElement('li');
-    listItem.textContent = country.name.common;
-    listItem.addEventListener('click', () => displayCountryDetails(country));
-    countryList.appendChild(listItem);
-  });
-};
-
-const displayCountryDetails = (country) => {
-  clearCountryDetails();
-  const details = `
-    <h2>${country.name.common}</h2>
-    <p>Capital: ${country.capital}</p>
-    <p>Population: ${country.population}</p>
-    <img src="${country.flags.png}" alt="Flag">
-    <p>Languages: ${Object.values(country.languages).join(', ')}</p>
-  `;
-  countryDetails.innerHTML = details;
-};
-
-const searchCountries = async (event) => {
-  const searchText = event.target.value.trim();
-  if (searchText === '') {
-    clearCountryList();
-    clearCountryDetails();
-    return;
+  if (countries.length > 10) {
+    notiflix.Notify.warning('Too many matches found. Please enter a more specific name.');
+  } else {
+    countries.forEach(country => {
+      const listItem = document.createElement('li');
+      listItem.textContent = country.name.official;
+      listItem.dataset.country = JSON.stringify(country);
+      countryList.appendChild(listItem);
+    });
   }
+};
+
+const displayCountryInfo = (country) => {
+  const html = `
+    <div>
+      <h2>${country.name.official}</h2>
+      <p><strong>Capital:</strong> ${country.capital}</p>
+      <p><strong>Population:</strong> ${country.population}</p>
+      <img src="${country.flags.svg}" alt="Flag">
+      <p><strong>Languages:</strong> ${country.languages.map(lang => lang.name).join(', ')}</p>
+    </div>
+  `;
+  countryInfo.innerHTML = html;
+};
+
+const searchCountries = async (name) => {
   try {
-    const countries = await fetchCountries(searchText);
-    if (countries.length > 10) {
-      clearCountryDetails();
-      countryList.innerHTML = '<li>Too many matches. Please specify your search.</li>';
+    const countries = await fetchCountries(name.trim());
+    if (countries.length === 0) {
+      clearCountryList();
+      clearCountryInfo();
+      notiflix.Notify.warning('Oops, there is no country with that name');
+      return;
+    }
+    if (countries.length === 1) {
+      clearCountryList();
+      displayCountryInfo(countries[0]);
     } else {
       displayCountryList(countries);
-      clearCountryDetails();
+      clearCountryInfo();
     }
   } catch (error) {
-    console.error('Error:', error.message);
-    clearCountryList();
-    clearCountryDetails();
-    countryList.innerHTML = `<li>Error: ${error.message}</li>`;
+    console.error(error.message);
+    notiflix.Notify.failure('Oops! Something went wrong. Please try again later.');
   }
 };
 
-searchBox.addEventListener('input', searchCountries);
+searchBox.addEventListener('input', debounce(event => {
+  const searchTerm = event.target.value.trim();
+  if (searchTerm === '') {
+    clearCountryList();
+    clearCountryInfo();
+    return;
+  }
+  searchCountries(searchTerm);
+}, 300));
